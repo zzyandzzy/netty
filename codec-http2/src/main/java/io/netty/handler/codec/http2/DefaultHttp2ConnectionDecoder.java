@@ -18,10 +18,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpStatusClass;
 import io.netty.handler.codec.http2.Http2Connection.Endpoint;
+import io.netty.util.internal.MathUtil;
 import io.netty.util.internal.UnstableApi;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static io.netty.handler.codec.http.HttpStatusClass.INFORMATIONAL;
@@ -587,6 +590,9 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
                 // after a RST_STREAM has been sent. Since we don't retain metadata about streams that have been
                 // reset we can't know this for sure.
                 verifyStreamMayHaveExisted(streamId);
+
+                // TODO: Fix me
+                // throw streamError(streamId, STREAM_CLOSED, "Received %s frame for an unknown stream %d", frameName, streamId);
                 return true;
             } else if (stream.isResetSent() || streamCreatedAfterGoAwaySent(streamId)) {
                 // If we have sent a reset stream it is assumed the stream will be closed after the write completes.
@@ -731,6 +737,39 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
         public void onUnknownFrame(ChannelHandlerContext ctx, byte frameType, int streamId, Http2Flags flags,
                 ByteBuf payload) throws Http2Exception {
             onUnknownFrame0(ctx, frameType, streamId, flags, payload);
+        }
+    }
+
+    private final class RstStreamRingBuffer {
+
+        private final int[] elements;
+        private int oldestIdx;
+
+        RstStreamRingBuffer() {
+            elements = new int[32];
+            Arrays.fill(elements, -1);
+        }
+
+        boolean add(int streamId) {
+            for (int i = 0; i < elements.length; i++) {
+                int id = elements[i];
+                if (id == -1) {
+                    // Still some space left
+                    elements[i] = streamId;
+                    return true;
+                } else if (id == streamId) {
+                    return false;
+                }
+            }
+
+            // Just override the oldest entry.
+            elements[oldestIdx++] = streamId;
+            if (oldestIdx == elements.length) {
+                // We need to start from 0 again.
+                oldestIdx = 0;
+            }
+
+            return true;
         }
     }
 }
