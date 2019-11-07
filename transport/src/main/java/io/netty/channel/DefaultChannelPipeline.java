@@ -501,6 +501,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         DefaultChannelHandlerContext next = ctx.next;
         prev.next = next;
         next.prev = prev;
+
+        ctx.next = null;
+        ctx.prev = null;
     }
 
     private void remove0(DefaultChannelHandlerContext ctx) {
