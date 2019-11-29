@@ -141,6 +141,7 @@ public class ReentrantChannelTest extends BaseChannelTest {
                 "WRITABILITY: writable=false\n" +
                 "FLUSH\n" +
                 "WRITABILITY: writable=true\n",
+
                 // Case 2:
                 "WRITABILITY: writable=false\n" +
                 "FLUSH\n" +
@@ -189,7 +190,7 @@ public class ReentrantChannelTest extends BaseChannelTest {
             }
         });
 
-        clientChannel.writeAndFlush(createTestBuf(2000));
+        clientChannel.writeAndFlush(createTestBuf(2000)).sync();
         clientChannel.close().sync();
 
         assertLog(

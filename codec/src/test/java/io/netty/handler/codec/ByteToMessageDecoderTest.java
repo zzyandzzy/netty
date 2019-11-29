@@ -222,10 +222,14 @@ public class ByteToMessageDecoderTest {
         };
 
         EmbeddedChannel channel = new EmbeddedChannel(decoder, new ChannelHandler() {
+            private boolean removed;
             @Override
             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                 if (msg == upgradeMessage) {
-                    ctx.pipeline().remove(decoder);
+                    if (!removed) {
+                        removed = true;
+                        ctx.pipeline().remove(decoder);
+                    }
                     return;
                 }
                 ctx.fireChannelRead(msg);

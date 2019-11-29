@@ -52,7 +52,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     private static final ChannelHandler HEAD_HANDLER = new HeadHandler();
     private static final ChannelHandler TAIL_HANDLER = new TailHandler();
-    private static final ChannelHandler EMPTY_HANDLER = new EmptyHandler();
+    private static final ChannelHandler UNLINK_HANDLER = new EmptyHandler();
 
     private static final FastThreadLocal<Map<Class<?>, String>> nameCaches =
             new FastThreadLocal<Map<Class<?>, String>>() {
@@ -67,7 +67,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     DefaultChannelPipeline.class, MessageSizeEstimator.Handle.class, "estimatorHandle");
     private final DefaultChannelHandlerContext head;
     private final DefaultChannelHandlerContext tail;
-    final DefaultChannelHandlerContext empty;
+    private final DefaultChannelHandlerContext empty;
     private final Channel channel;
     private final ChannelFuture succeededFuture;
     private final VoidChannelPromise voidPromise;
@@ -80,7 +80,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         this.channel = requireNonNull(channel, "channel");
         succeededFuture = new SucceededChannelFuture(channel, channel.eventLoop());
         voidPromise =  new VoidChannelPromise(channel, true);
-        empty = new DefaultChannelHandlerContext(this, EMPTY_NAME, EMPTY_HANDLER);
+        empty = new DefaultChannelHandlerContext(this, EMPTY_NAME, UNLINK_HANDLER);
         tail = new DefaultChannelHandlerContext(this, TAIL_NAME, TAIL_HANDLER);
         head = new DefaultChannelHandlerContext(this, HEAD_NAME, HEAD_HANDLER);
         head.next = tail;
@@ -500,17 +500,23 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     private void relink(DefaultChannelHandlerContext ctx) {
-        assert ctx != head && ctx != tail;
+        assert ctx != head && ctx != tail && ctx != empty;
         DefaultChannelHandlerContext prev = ctx.prev;
         DefaultChannelHandlerContext next = ctx.next;
         prev.next = next;
         next.prev = prev;
     }
 
+    private void unlink(DefaultChannelHandlerContext ctx) {
+        assert ctx != head && ctx != tail && ctx != empty;
+        ctx.next = empty;
+        ctx.prev = empty;
+    }
+
     private void remove0(DefaultChannelHandlerContext ctx) {
         relink(ctx);
         callHandlerRemoved0(ctx);
-        ctx.unlink();
+        unlink(ctx);
     }
 
     @Override
@@ -597,7 +603,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             callHandlerAdded0(newCtx);
             callHandlerRemoved0(oldCtx);
         } finally {
-            oldCtx.unlink();
+            unlink(oldCtx);
         }
     }
 
@@ -632,7 +638,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     logger.warn("Failed to remove a handler: " + ctx.name(), t2);
                 }
             } finally {
-                ctx.unlink();
+                unlink(ctx);
             }
 
             if (removed) {
@@ -1239,9 +1245,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
 
         @Override
-        public void channelReadComplete(ChannelHandlerContext ctx) {
-
-        }
+        public void channelReadComplete(ChannelHandlerContext ctx) { }
 
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {

@@ -138,30 +138,18 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
         }
     };
 
-    private static final byte STATE_INIT = 0;
-    private static final byte STATE_CALLING_CHILD_DECODE = 1;
-    private static final byte STATE_HANDLER_REMOVED_PENDING = 2;
-
     ByteBuf cumulation;
     private Cumulator cumulator = MERGE_CUMULATOR;
     private boolean singleDecode;
     private boolean first;
+    // TODO: Improve this...
+    private CodecOutputList out = CodecOutputList.newInstance();
 
     /**
      * This flag is used to determine if we need to call {@link ChannelHandlerContext#read()} to consume more data
      * when {@link ChannelConfig#isAutoRead()} is {@code false}.
      */
     private boolean firedChannelRead;
-
-    /**
-     * A bitmask where the bits are defined as
-     * <ul>
-     *     <li>{@link #STATE_INIT}</li>
-     *     <li>{@link #STATE_CALLING_CHILD_DECODE}</li>
-     *     <li>{@link #STATE_HANDLER_REMOVED_PENDING}</li>
-     * </ul>
-     */
-    private byte decodeState = STATE_INIT;
     private int discardAfterReads = 16;
     private int numReads;
 
@@ -231,10 +219,9 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
 
     @Override
     public final void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        if (decodeState == STATE_CALLING_CHILD_DECODE) {
-            decodeState = STATE_HANDLER_REMOVED_PENDING;
-            return;
-        }
+        fireChannelRead(ctx, out, out.size());
+        out.clear();
+
         ByteBuf buf = cumulation;
         if (buf != null) {
             // Directly set this to null so we are sure we not access it in any other method here anymore.
@@ -260,7 +247,6 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
-            CodecOutputList out = CodecOutputList.newInstance();
             try {
                 ByteBuf data = (ByteBuf) msg;
                 first = cumulation == null;
@@ -287,9 +273,9 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
                 }
 
                 int size = out.size();
-                firedChannelRead |= out.insertSinceRecycled();
+                firedChannelRead |= size > 0;
                 fireChannelRead(ctx, out, size);
-                out.recycle();
+                out.clear();
             }
         } else {
             ctx.fireChannelRead(msg);
@@ -359,7 +345,6 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
     }
 
     private void channelInputClosed(ChannelHandlerContext ctx, boolean callChannelInactive) throws Exception {
-        CodecOutputList out = CodecOutputList.newInstance();
         try {
             channelInputClosed(ctx, out);
         } catch (DecoderException e) {
@@ -367,23 +352,19 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
         } catch (Exception e) {
             throw new DecoderException(e);
         } finally {
-            try {
-                if (cumulation != null) {
-                    cumulation.release();
-                    cumulation = null;
-                }
-                int size = out.size();
-                fireChannelRead(ctx, out, size);
-                if (size > 0) {
-                    // Something was read, call fireChannelReadComplete()
-                    ctx.fireChannelReadComplete();
-                }
-                if (callChannelInactive) {
-                    ctx.fireChannelInactive();
-                }
-            } finally {
-                // Recycle in all cases
-                out.recycle();
+            if (cumulation != null) {
+                cumulation.release();
+                cumulation = null;
+            }
+            int size = out.size();
+            fireChannelRead(ctx, out, size);
+            out.clear();
+            if (size > 0) {
+                // Something was read, call fireChannelReadComplete()
+                ctx.fireChannelReadComplete();
+            }
+            if (callChannelInactive) {
+                ctx.fireChannelInactive();
             }
         }
     }
@@ -430,7 +411,7 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
                 }
 
                 int oldInputLength = in.readableBytes();
-                decodeRemovalReentryProtection(ctx, in, out);
+                decode(ctx, in, out);
 
                 // Check if this handler was removed before continuing the loop.
                 // If it was removed, it is not safe to continue to operate on the buffer.
@@ -478,32 +459,6 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
     protected abstract void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception;
 
     /**
-     * Decode the from one {@link ByteBuf} to an other. This method will be called till either the input
-     * {@link ByteBuf} has nothing to read when return from this method or till nothing was read from the input
-     * {@link ByteBuf}.
-     *
-     * @param ctx           the {@link ChannelHandlerContext} which this {@link ByteToMessageDecoder} belongs to
-     * @param in            the {@link ByteBuf} from which to read data
-     * @param out           the {@link List} to which decoded messages should be added
-     * @throws Exception    is thrown if an error occurs
-     */
-    final void decodeRemovalReentryProtection(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
-            throws Exception {
-        decodeState = STATE_CALLING_CHILD_DECODE;
-        try {
-            decode(ctx, in, out);
-        } finally {
-            boolean removePending = decodeState == STATE_HANDLER_REMOVED_PENDING;
-            decodeState = STATE_INIT;
-            if (removePending) {
-                fireChannelRead(ctx, out, out.size());
-                out.clear();
-                handlerRemoved(ctx);
-            }
-        }
-    }
-
-    /**
      * Is called one last time when the {@link ChannelHandlerContext} goes in-active. Which means the
      * {@link #channelInactive(ChannelHandlerContext)} was triggered.
      *
@@ -514,7 +469,7 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
         if (in.isReadable()) {
             // Only call decode() if there is something left in the buffer to decode.
             // See https://github.com/netty/netty/issues/4386
-            decodeRemovalReentryProtection(ctx, in, out);
+            decode(ctx, in, out);
         }
     }
 

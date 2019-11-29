@@ -801,10 +801,6 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
 
     private DefaultChannelHandlerContext findContextInbound(int mask) {
         DefaultChannelHandlerContext ctx = this;
-        if (ctx.next == null) {
-            assert handlerState == REMOVE_COMPLETE;
-            return pipeline.empty;
-        }
         do {
             ctx = ctx.next;
         } while ((ctx.executionMask & mask) == 0);
@@ -813,10 +809,6 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
 
     private DefaultChannelHandlerContext findContextOutbound(int mask) {
         DefaultChannelHandlerContext ctx = this;
-        if (ctx.prev == null) {
-            assert handlerState == REMOVE_COMPLETE;
-            return pipeline.empty;
-        }
         do {
             ctx = ctx.prev;
         } while ((ctx.executionMask & mask) == 0);
@@ -1002,7 +994,6 @@ final class DefaultChannelHandlerContext implements ChannelHandlerContext, Resou
     static final class WriteAndFlushTask extends AbstractWriteTask {
 
         private static final ObjectPool<WriteAndFlushTask> RECYCLER = ObjectPool.newPool(WriteAndFlushTask::new);
-
 
         static WriteAndFlushTask newInstance(
                 DefaultChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
