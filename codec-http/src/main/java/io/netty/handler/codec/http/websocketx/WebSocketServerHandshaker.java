@@ -292,17 +292,17 @@ public abstract class WebSocketServerHandshaker {
         p.addAfter(aggregatorName, "handshaker", new SimpleChannelInboundHandler<FullHttpRequest>() {
             @Override
             protected void messageReceived(ChannelHandlerContext ctx, FullHttpRequest msg) throws Exception {
+                handshake(channel, msg, responseHeaders, promise);
                 // Remove ourself and do the actual handshake
                 ctx.pipeline().remove(this);
-                handshake(channel, msg, responseHeaders, promise);
             }
 
             @Override
             public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-                // Remove ourself and fail the handshake promise.
-                ctx.pipeline().remove(this);
                 promise.tryFailure(cause);
                 ctx.fireExceptionCaught(cause);
+                // Remove ourself and fail the handshake promise.
+                ctx.pipeline().remove(this);
             }
 
             @Override

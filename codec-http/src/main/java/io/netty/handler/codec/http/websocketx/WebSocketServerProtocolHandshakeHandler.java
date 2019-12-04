@@ -17,6 +17,7 @@ package io.netty.handler.codec.http.websocketx;
 
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelPipeline;
@@ -86,9 +87,9 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
                 //
                 // See https://github.com/netty/netty/issues/9471.
                 WebSocketServerProtocolHandler.setHandshaker(ctx.channel(), handshaker);
-                ctx.pipeline().replace(this, "WS403Responder",
-                        WebSocketServerProtocolHandler.forbiddenHttpRequestResponder());
-
+                ChannelHandler forbiddenHttpRequestResponder =
+                        WebSocketServerProtocolHandler.forbiddenHttpRequestResponder();
+                ctx.pipeline().addBefore(ctx.name(), "WS403Responder", forbiddenHttpRequestResponder);
                 final ChannelFuture handshakeFuture = handshaker.handshake(ctx.channel(), req);
                 handshakeFuture.addListener((ChannelFutureListener) future -> {
                     if (!future.isSuccess()) {
@@ -103,6 +104,7 @@ class WebSocketServerProtocolHandshakeHandler implements ChannelInboundHandler {
                                 new WebSocketServerProtocolHandler.HandshakeComplete(
                                         req.uri(), req.headers(), handshaker.selectedSubprotocol()));
                     }
+                    ctx.pipeline().remove(WebSocketServerProtocolHandshakeHandler.this);
                 });
                 applyHandshakeTimeout();
             }

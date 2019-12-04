@@ -491,9 +491,10 @@ public class ByteToMessageDecoderTest {
             //read 4 byte then remove this decoder
             @Override
             protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-                out.add(in.readByte());
-                if (++count >= 4) {
+                if (++count >= 5) {
                     ctx.pipeline().remove(this);
+                } else {
+                    out.add(in.readByte());
                 }
             }
         };

@@ -42,7 +42,8 @@ public class SocksCmdRequestDecoder extends ReplayingDecoder<State> {
             case CHECK_PROTOCOL_VERSION: {
                 if (byteBuf.readByte() != SocksProtocolVersion.SOCKS5.byteValue()) {
                     out.add(SocksCommonUtils.UNKNOWN_SOCKS_REQUEST);
-                    break;
+                    checkpoint(State.DONE);
+                    return;
                 }
                 checkpoint(State.READ_CMD_HEADER);
             }
@@ -58,14 +59,16 @@ public class SocksCmdRequestDecoder extends ReplayingDecoder<State> {
                         String host = NetUtil.intToIpAddress(byteBuf.readInt());
                         int port = byteBuf.readUnsignedShort();
                         out.add(new SocksCmdRequest(cmdType, addressType, host, port));
-                        break;
+                        checkpoint(State.DONE);
+                        return;
                     }
                     case DOMAIN: {
                         int fieldLength = byteBuf.readByte();
                         String host = SocksCommonUtils.readUsAscii(byteBuf, fieldLength);
                         int port = byteBuf.readUnsignedShort();
                         out.add(new SocksCmdRequest(cmdType, addressType, host, port));
-                        break;
+                        checkpoint(State.DONE);
+                        return;
                     }
                     case IPv6: {
                         byte[] bytes = new byte[16];
@@ -73,28 +76,32 @@ public class SocksCmdRequestDecoder extends ReplayingDecoder<State> {
                         String host = SocksCommonUtils.ipv6toStr(bytes);
                         int port = byteBuf.readUnsignedShort();
                         out.add(new SocksCmdRequest(cmdType, addressType, host, port));
-                        break;
+                        checkpoint(State.DONE);
+                        return;
                     }
                     case UNKNOWN: {
                         out.add(SocksCommonUtils.UNKNOWN_SOCKS_REQUEST);
-                        break;
+                        checkpoint(State.DONE);
+                        return;
                     }
                     default: {
                         throw new Error();
                     }
                 }
-                break;
             }
+            case DONE:
+                ctx.pipeline().remove(this);
+                return;
             default: {
                 throw new Error();
             }
         }
-        ctx.pipeline().remove(this);
     }
 
     enum State {
         CHECK_PROTOCOL_VERSION,
         READ_CMD_HEADER,
-        READ_CMD_ADDRESS
+        READ_CMD_ADDRESS,
+        DONE
     }
 }

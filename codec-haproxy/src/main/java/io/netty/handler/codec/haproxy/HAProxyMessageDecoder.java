@@ -248,6 +248,14 @@ public class HAProxyMessageDecoder extends ByteToMessageDecoder {
     }
 
     @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        ctx.fireExceptionCaught(cause);
+        if (cause instanceof HAProxyProtocolException) {
+            ctx.close(); // drop connection immediately per spec
+        }
+    }
+
+    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         super.channelRead(ctx, msg);
         if (finished) {
@@ -327,7 +335,6 @@ public class HAProxyMessageDecoder extends ByteToMessageDecoder {
 
     private void fail(final ChannelHandlerContext ctx, String errMsg, Exception e) {
         finished = true;
-        ctx.close(); // drop connection immediately per spec
         HAProxyProtocolException ppex;
         if (errMsg != null && e != null) {
             ppex = new HAProxyProtocolException(errMsg, e);

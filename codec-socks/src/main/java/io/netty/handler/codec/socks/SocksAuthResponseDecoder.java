@@ -39,24 +39,29 @@ public class SocksAuthResponseDecoder extends ReplayingDecoder<State> {
             case CHECK_PROTOCOL_VERSION: {
                 if (byteBuf.readByte() != SocksSubnegotiationVersion.AUTH_PASSWORD.byteValue()) {
                     out.add(SocksCommonUtils.UNKNOWN_SOCKS_RESPONSE);
-                    break;
+                    checkpoint(State.DONE);
+                    return;
                 }
                 checkpoint(State.READ_AUTH_RESPONSE);
             }
             case READ_AUTH_RESPONSE: {
                 SocksAuthStatus authStatus = SocksAuthStatus.valueOf(byteBuf.readByte());
                 out.add(new SocksAuthResponse(authStatus));
-                break;
+                checkpoint(State.DONE);
+                return;
             }
+            case DONE:
+                channelHandlerContext.pipeline().remove(this);
+                return;
             default: {
                 throw new Error();
             }
         }
-        channelHandlerContext.pipeline().remove(this);
     }
 
     enum State {
         CHECK_PROTOCOL_VERSION,
-        READ_AUTH_RESPONSE
+        READ_AUTH_RESPONSE,
+        DONE
     }
 }

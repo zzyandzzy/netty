@@ -219,8 +219,8 @@ public abstract class ByteToMessageDecoder extends ChannelHandlerAdapter {
 
     @Override
     public final void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        fireChannelRead(ctx, out, out.size());
-        out.clear();
+        //fireChannelRead(ctx, out, out.size());
+        //out.clear();
 
         ByteBuf buf = cumulation;
         if (buf != null) {

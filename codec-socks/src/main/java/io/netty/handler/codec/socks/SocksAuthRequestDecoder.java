@@ -40,7 +40,8 @@ public class SocksAuthRequestDecoder extends ReplayingDecoder<State> {
             case CHECK_PROTOCOL_VERSION: {
                 if (byteBuf.readByte() != SocksSubnegotiationVersion.AUTH_PASSWORD.byteValue()) {
                     out.add(SocksCommonUtils.UNKNOWN_SOCKS_REQUEST);
-                    break;
+                    checkpoint(State.DONE);
+                    return;
                 }
                 checkpoint(State.READ_USERNAME);
             }
@@ -53,18 +54,22 @@ public class SocksAuthRequestDecoder extends ReplayingDecoder<State> {
                 int fieldLength = byteBuf.readByte();
                 String password = SocksCommonUtils.readUsAscii(byteBuf, fieldLength);
                 out.add(new SocksAuthRequest(username, password));
-                break;
+                checkpoint(State.DONE);
+                return;
             }
+            case DONE:
+                ctx.pipeline().remove(this);
+                return;
             default: {
                 throw new Error();
             }
         }
-        ctx.pipeline().remove(this);
     }
 
     enum State {
         CHECK_PROTOCOL_VERSION,
         READ_USERNAME,
-        READ_PASSWORD
+        READ_PASSWORD,
+        DONE
     }
 }

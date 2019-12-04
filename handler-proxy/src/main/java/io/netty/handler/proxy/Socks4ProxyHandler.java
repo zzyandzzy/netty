@@ -16,6 +16,7 @@
 
 package io.netty.handler.proxy;
 
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.socksx.v4.DefaultSocks4CommandRequest;
@@ -81,13 +82,17 @@ public final class Socks4ProxyHandler extends ProxyHandler {
     @Override
     protected void removeEncoder(ChannelHandlerContext ctx) throws Exception {
         ChannelPipeline p = ctx.pipeline();
-        p.remove(encoderName);
+        ChannelHandler handler = p.remove(encoderName);
+        System.err.println(ctx.handler().getClass());
+        assert handler != ctx.handler();
     }
 
     @Override
     protected void removeDecoder(ChannelHandlerContext ctx) throws Exception {
         ChannelPipeline p = ctx.pipeline();
-        p.remove(decoderName);
+        ChannelHandler handler = p.remove(decoderName);
+        System.err.println(ctx.handler().getClass());
+        assert handler != ctx.handler();
     }
 
     @Override

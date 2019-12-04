@@ -80,6 +80,7 @@ public class WebSocketClientExtensionHandler implements ChannelHandler {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg)
             throws Exception {
+        boolean remove = false;
         if (msg instanceof HttpResponse) {
             HttpResponse response = (HttpResponse) msg;
 
@@ -120,12 +121,14 @@ public class WebSocketClientExtensionHandler implements ChannelHandler {
                         ctx.pipeline().addAfter(ctx.name(), encoder.getClass().getName(), encoder);
                     }
                 }
-
-                ctx.pipeline().remove(ctx.name());
+                remove = true;
             }
         }
 
         ctx.fireChannelRead(msg);
+        if (remove) {
+            ctx.pipeline().remove(ctx.name());
+        }
     }
 }
 

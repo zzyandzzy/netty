@@ -1241,6 +1241,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+
             ReferenceCountUtil.release(msg);
         }
 
@@ -1295,10 +1296,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
             ReferenceCountUtil.release(msg);
+            new Throwable().printStackTrace();
             promise.setFailure(new ChannelPipelineException("Handler " + ctx.handler() + " removed already"));
         }
 
         @Override
-        public void flush(ChannelHandlerContext ctx) { }
+        public void flush(ChannelHandlerContext ctx) {
+            new Throwable().printStackTrace();
+        }
     }
 }
