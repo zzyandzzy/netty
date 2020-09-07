@@ -336,7 +336,7 @@ public final class ChannelOutboundBuffer {
         for (;;) {
             Object msg = current();
             if (!(msg instanceof ByteBuf)) {
-                assert writtenBytes == 0;
+                assert writtenBytes == 0 : "writtenBytes: " + writtenBytes;
                 break;
             }
 

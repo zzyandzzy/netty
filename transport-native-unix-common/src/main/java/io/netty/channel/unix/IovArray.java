@@ -153,6 +153,10 @@ public final class IovArray implements MessageProcessor {
         return true;
     }
 
+    public boolean isFull() {
+        return count >= IOV_SIZE || size >= maxBytes;
+    }
+
     /**
      * Returns the number if iov entries.
      */

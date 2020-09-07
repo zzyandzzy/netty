@@ -19,6 +19,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SingleThreadEventLoop;
 import io.netty.channel.unix.Errors;
 import io.netty.channel.unix.FileDescriptor;
+import io.netty.channel.unix.IovArray;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import io.netty.util.internal.PlatformDependent;
@@ -46,7 +47,7 @@ final class IOUringEventLoop extends SingleThreadEventLoop implements
     //    other value T    when EL is waiting with wakeup scheduled at time T
     private final AtomicLong nextWakeupNanos = new AtomicLong(AWAKE);
     private final FileDescriptor eventfd;
-    private final IovecArrayPool iovecArrayPool;
+    private final IovArray iovArray;
 
     private long prevDeadlineNanos = NONE;
     private boolean pendingWakeup;
@@ -57,7 +58,7 @@ final class IOUringEventLoop extends SingleThreadEventLoop implements
         ringBuffer = Native.createRingBuffer();
         eventfd = Native.newEventFd();
         logger.trace("New EventLoop: {}", this.toString());
-        iovecArrayPool = new IovecArrayPool();
+        iovArray = new IovArray();
     }
 
     @Override
@@ -151,10 +152,12 @@ final class IOUringEventLoop extends SingleThreadEventLoop implements
             runAllTasks();
 
             submissionQueue.submit();
+            iovArray.clear();
             try {
                 if (isShuttingDown()) {
                     closeAll();
                     submissionQueue.submit();
+                    iovArray.clear();
                     if (confirmShutdown()) {
                         break;
                     }
@@ -253,7 +256,7 @@ final class IOUringEventLoop extends SingleThreadEventLoop implements
             logger.warn("Failed to close the event fd.", e);
         }
         ringBuffer.close();
-        iovecArrayPool.release();
+        iovArray.release();
     }
 
     public RingBuffer getRingBuffer() {
@@ -268,7 +271,7 @@ final class IOUringEventLoop extends SingleThreadEventLoop implements
         }
     }
 
-    public IovecArrayPool getIovecArrayPool() {
-        return iovecArrayPool;
+    public IovArray getIovArray() {
+        return iovArray;
     }
 }
